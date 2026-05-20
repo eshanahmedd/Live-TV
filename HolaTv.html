@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HolaTV — Live TV Portal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+<style>
+  :root {
+    --bg: #080c10;
+    --bg2: #0d1117;
+    --bg3: #161b22;
+    --bg4: #1c2330;
+    --border: rgba(255,255,255,0.07);
+    --accent: #e63946;
+    --accent2: #ff6b35;
+    --gold: #f4c542;
+    --text: #e8edf2;
+    --muted: #6b7888;
+    --green: #2ddc72;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'DM Sans', sans-serif;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* HEADER */
+  header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 20px;
+    background: var(--bg2);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .logo {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 22px;
+    letter-spacing: 3px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .logo-dot {
+    width: 8px; height: 8px;
+    background: var(--accent);
+    border-radius: 50%;
+    animation: pulse 1.5s infinite;
+    -webkit-text-fill-color: initial;
+    flex-shrink: 0;
+  }
+
+  @keyframes pulse {
+    0%,100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.4; transform: scale(0.7); }
+  }
+
+  /* PLAYER SECTION */
+  #player-section {
+    background: #000;
+    position: relative;
+  }
+
+  #player-wrapper {
+    width: 100%;
+    aspect-ratio: 16/9;
+    background: #000;
+    position: relative;
+    max-height: 56vw;
+  }
+
+  video {
+    width: 100%; height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+
+  #player-overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(0,0,0,0.75);
+    flex-direction: column;
+    gap: 12px;
+    transition: opacity 0.3s;
+  }
+
+  #player-overlay.hidden { opacity: 0; pointer-events: none; }
+
+  .play-icon {
+    width: 64px; height: 64px;
+    background: var(--accent);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    transition: transform 0.2s, background 0.2s;
+  }
+
+  .play-icon:hover { transform: scale(1.1); background: var(--accent2); }
+  .play-icon svg { width: 26px; height: 26px; fill: white; margin-left: 3px; }
+
+  #overlay-text {
+    font-size: 14px;
+    color: rgba(255,255,255,0.6);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  /* NOW PLAYING BAR */
+  #now-playing {
+    background: var(--bg3);
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .channel-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .ch-thumb {
+    width: 38px; height: 38px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: var(--bg4);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+    flex-shrink: 0;
+  }
+
+  .ch-name {
+    font-size: 15px;
+    font-weight: 600;
+  }
+
+  .ch-cat {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-top: 1px;
+  }
+
+  .live-badge {
+    background: var(--accent);
+    color: white;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .live-dot {
+    width: 6px; height: 6px;
+    background: white;
+    border-radius: 50%;
+    animation: pulse 1.2s infinite;
+  }
+
+  /* SEARCH & FILTER */
+  #controls {
+    padding: 14px 16px 10px;
+    background: var(--bg2);
+  }
+
+  #search-box {
+    width: 100%;
+    background: var(--bg3);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 14px 10px 38px;
+    color: var(--text);
+    font-size: 14px;
+    font-family: 'DM Sans', sans-serif;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  #search-box:focus { border-color: var(--accent); }
+  #search-box::placeholder { color: var(--muted); }
+
+  .search-wrap {
+    position: relative;
+    margin-bottom: 12px;
+  }
+
+  .search-icon {
+    position: absolute;
+    left: 12px; top: 50%;
+    transform: translateY(-50%);
+    color: var(--muted);
+    pointer-events: none;
+  }
+
+  .filter-tabs {
+    display: flex;
+    gap: 7px;
+    overflow-x: auto;
+    scrollbar-width: none;
+    padding-bottom: 2px;
+  }
+
+  .filter-tabs::-webkit-scrollbar { display: none; }
+
+  .tab {
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s;
+    font-family: 'DM Sans', sans-serif;
+  }
+
+  .tab.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  /* CHANNEL LIST */
+  #channel-list {
+    padding: 8px 0 80px;
+    background: var(--bg2);
+  }
+
+  .section-label {
+    font-size: 10px;
+    letter-spacing: 2px;
+    color: var(--muted);
+    text-transform: uppercase;
+    padding: 10px 16px 6px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .channel-item {
+    display: flex;
+    align-items: center;
+    gap: 13px;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.15s;
+    border-left: 3px solid transparent;
+    position: relative;
+  }
+
+  .channel-item:hover { background: var(--bg3); }
+
+  .channel-item.active {
+    background: rgba(230,57,70,0.08);
+    border-left-color: var(--accent);
+  }
+
+  .ch-logo {
+    width: 42px; height: 42px;
+    border-radius: 10px;
+    background: var(--bg3);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px;
+    flex-shrink: 0;
+    border: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .ch-logo img { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+
+  .ch-details { flex: 1; min-width: 0; }
+  .ch-title { font-size: 14px; font-weight: 500; }
+  .ch-subtitle { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px; }
+
+  .ch-status {
+    font-size: 10px;
+    font-weight: 600;
+    font-family: 'JetBrains Mono', monospace;
+    padding: 3px 7px;
+    border-radius: 4px;
+    background: rgba(45,220,114,0.12);
+    color: var(--green);
+    letter-spacing: 0.5px;
+  }
+
+  .ch-status.unavailable {
+    background: rgba(107,120,136,0.1);
+    color: var(--muted);
+  }
+
+  /* LOADING SPINNER */
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin: 0 auto;
+  }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ERROR / INFO STATES */
+  #stream-status {
+    position: absolute;
+    bottom: 10px; left: 10px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: rgba(255,255,255,0.5);
+    pointer-events: none;
+  }
+
+  /* TOAST */
+  #toast {
+    position: fixed;
+    bottom: 24px; left: 50%;
+    transform: translateX(-50%) translateY(20px);
+    background: var(--bg4);
+    border: 1px solid var(--border);
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 13px;
+    color: var(--text);
+    opacity: 0;
+    transition: all 0.3s;
+    z-index: 999;
+    white-space: nowrap;
+  }
+
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  /* CRICKET SCORE TICKER */
+  #ticker {
+    background: linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%);
+    padding: 7px 16px;
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    letter-spacing: 0.5px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+
+  .ticker-inner {
+    display: inline-block;
+    animation: ticker 25s linear infinite;
+  }
+
+  @keyframes ticker {
+    0% { transform: translateX(100vw); }
+    100% { transform: translateX(-100%); }
+  }
+
+  /* Divider between sections */
+  .list-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 0;
+  }
+
+  /* No results */
+  .no-results {
+    text-align: center;
+    padding: 40px 20px;
+    color: var(--muted);
+    font-size: 14px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-dot"></div>
+    HOLA TV
+  </div>
+  <div style="font-size:11px;color:var(--muted);font-family:'JetBrains Mono',monospace;">LIVE TV PORTAL</div>
+</header>
+
+<!-- Player -->
+<div id="player-section">
+  <div id="player-wrapper">
+    <video id="video" playsinline controls></video>
+    <div id="player-overlay">
+      <div class="spinner"></div>
+      <div id="overlay-text">Select a channel to watch</div>
+    </div>
+    <div id="stream-status"></div>
+  </div>
+</div>
+
+<!-- Now Playing -->
+<div id="now-playing">
+  <div class="channel-info">
+    <div class="ch-thumb" id="np-logo">📺</div>
+    <div>
+      <div class="ch-name" id="np-name">No channel selected</div>
+      <div class="ch-cat" id="np-cat">Tap a channel below</div>
+    </div>
+  </div>
+  <div class="live-badge" id="live-badge" style="opacity:0">
+    <div class="live-dot"></div>LIVE
+  </div>
+</div>
+
+<!-- Ticker -->
+<div id="ticker">
+  <span class="ticker-inner">
+    🏏 T SPORTS HD — Live Cricket Streaming &nbsp;&nbsp;&nbsp; ⚡ STAR SPORTS 1 — ICC World Cup Coverage &nbsp;&nbsp;&nbsp; 🔴 STAR SPORTS SELECT 1 — HD Stream &nbsp;&nbsp;&nbsp; 🏏 Watch Bangladesh Cricket LIVE &nbsp;&nbsp;&nbsp; ⚡ Select a channel to start streaming &nbsp;&nbsp;&nbsp;
+  </span>
+</div>
+
+<!-- Search & Filter -->
+<div id="controls">
+  <div class="search-wrap">
+    <svg class="search-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+    <input type="text" id="search-box" placeholder="Search channels..." oninput="filterChannels()">
+  </div>
+  <div class="filter-tabs">
+    <button class="tab active" onclick="setFilter('all', this)">All</button>
+    <button class="tab" onclick="setFilter('cricket', this)">🏏 Cricket</button>
+    <button class="tab" onclick="setFilter('sports', this)">Sports</button>
+    <button class="tab" onclick="setFilter('news', this)">News</button>
+    <button class="tab" onclick="setFilter('entertainment', this)">Entertainment</button>
+  </div>
+</div>
+
+<!-- Channel List -->
+<div id="channel-list"></div>
+
+<div id="toast"></div>
+
+<script>
+// ─────────────────────────────────────────
+// CHANNEL DATA
+// M3U8 streams from iptv-org & public sources
+// Replace stream URLs with working ones as needed
+// ─────────────────────────────────────────
+const channels = [
+  // ── CRICKET / SPORTS ──
+  {
+    id: 1,
+    name: "T Sports",
+    category: "cricket",
+    cat_label: "Sports • Cricket",
+    emoji: "🏏",
+    stream: "http://103.59.176.72:8083/live1/video.m3u8?token=123",
+    backup: "https://45.133.179.127/live/tsports/index.m3u8",
+    priority: true
+  },
+  {
+    id: 2,
+    name: "Star Sports 1",
+    category: "cricket",
+    cat_label: "Sports • Cricket • Hindi",
+    emoji: "⭐",
+    stream: "http://103.59.176.72:8083/live3/video.m3u8?token=123",
+    backup: null,
+    priority: true
+  },
+  {
+    id: 3,
+    name: "Star Sports 1 Hindi",
+    category: "cricket",
+    cat_label: "Sports • Cricket",
+    emoji: "⭐",
+    stream: "http://103.59.176.72:8083/ss1_hindi/video.m3u8?token=123",
+    backup: null,
+    priority: true
+  },
+  {
+    id: 4,
+    name: "Star Sports Select 1",
+    category: "cricket",
+    cat_label: "Sports • Cricket HD",
+    emoji: "🎯",
+    stream: "http://103.59.176.72:8083/ss1_hindi/video.m3u8?token=123",
+    backup: null,
+    priority: true
+  },
+  {
+    id: 5,
+    name: "Star Sports 3",
+    category: "sports",
+    cat_label: "Sports",
+    emoji: "🏆",
+    stream: "http://103.59.176.72:8083/ss1_hindi/video.m3u8?token=123",
+    backup: null
+  },
+  {
+    id: 6,
+    name: "GTV",
+    category: "cricket",
+    cat_label: "Sports • Bangladesh",
+    emoji: "🇧🇩",
+    stream: "http://103.59.176.72:8083/ss1_hindi/video.m3u8?token=123",
+    backup: null
+  },
+  {
+    id: 7,
+    name: "Maasranga TV",
+    category: "entertainment",
+    cat_label: "Entertainment • Bangladesh",
+    emoji: "🎬",
+    stream: "http://103.59.176.72:8083/maasranga/video.m3u8?token=123",
+    backup: null
+  },
+
+  // ── ENTERTAINMENT ──
+  {
+    id: 10,
+    name: "Star Jalsha",
+    category: "entertainment",
+    cat_label: "Entertainment • Bengali",
+    emoji: "🌟",
+    stream: "http://103.59.176.72:8083/live2/video.m3u8?token=123",
+    backup: null
+  },
+  {
+    id: 11,
+    name: "Jalsha Movies",
+    category: "entertainment",
+    cat_label: "Entertainment • Movies",
+    emoji: "🎥",
+    stream: "http://103.59.176.72:8083/live4/video.m3u8?token=123",
+    backup: null
+  },
+  {
+    id: 12,
+    name: "Sun Bangla",
+    category: "entertainment",
+    cat_label: "Entertainment • Bengali",
+    emoji: "☀️",
+    stream: "http://103.59.176.72:8083/ss1_en/video.m3u8?token=123",
+    backup: null
+  },
+  // ── NEWS ──
+  {
+    id: 13,
+    name: "ATN News",
+    category: "news",
+    cat_label: "News • BD",
+    emoji: "📡",
+    stream: "http://103.59.176.72:8083/atn_news/video.m3u8?token=123",
+    backup: null
+  },
+
+  {
+    id: 14,
+    name: "DBC News",
+    category: "news",
+    cat_label: "News • BD",
+    emoji: "📡",
+    stream: "http://103.59.176.72:8083/dbc_news/video.m3u8?token=123",
+    backup: null
+  },
+
+];
+
+// ─────────────────────────────────────────
+let currentFilter = 'all';
+let currentChannel = null;
+let hls = null;
+
+// ─────────────────────────────────────────
+// RENDER CHANNELS
+// ─────────────────────────────────────────
+function renderChannels(list) {
+  const container = document.getElementById('channel-list');
+  if (list.length === 0) {
+    container.innerHTML = '<div class="no-results">No channels found</div>';
+    return;
+  }
+
+  // Separate priority (cricket) from others
+  const priority = list.filter(c => c.priority);
+  const rest = list.filter(c => !c.priority);
+
+  let html = '';
+  if (priority.length) {
+    html += `<div class="section-label">⚡ Featured — Cricket</div>`;
+    priority.forEach(c => { html += channelHTML(c); });
+    if (rest.length) html += `<div class="list-divider"></div>`;
+  }
+  if (rest.length) {
+    if (priority.length) html += `<div class="section-label">All Channels</div>`;
+    rest.forEach(c => { html += channelHTML(c); });
+  }
+
+  container.innerHTML = html;
+}
+
+function channelHTML(c) {
+  const isActive = currentChannel && currentChannel.id === c.id;
+  return `
+    <div class="channel-item ${isActive ? 'active' : ''}" onclick="playChannel(${c.id})" id="ch-${c.id}">
+      <div class="ch-logo">${c.emoji}</div>
+      <div class="ch-details">
+        <div class="ch-title">${c.name}</div>
+        <div class="ch-subtitle">${c.cat_label}</div>
+      </div>
+      <div class="ch-status">LIVE</div>
+    </div>
+  `;
+}
+
+// ─────────────────────────────────────────
+// FILTER & SEARCH
+// ─────────────────────────────────────────
+function setFilter(cat, el) {
+  currentFilter = cat;
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  filterChannels();
+}
+
+function filterChannels() {
+  const q = document.getElementById('search-box').value.toLowerCase();
+  let list = channels;
+  if (currentFilter !== 'all') {
+    list = list.filter(c => c.category === currentFilter);
+  }
+  if (q) {
+    list = list.filter(c => c.name.toLowerCase().includes(q));
+  }
+  renderChannels(list);
+}
+
+// ─────────────────────────────────────────
+// PLAY CHANNEL
+// ─────────────────────────────────────────
+function playChannel(id) {
+  const ch = channels.find(c => c.id === id);
+  if (!ch) return;
+  currentChannel = ch;
+
+  // Update now playing bar
+  document.getElementById('np-logo').textContent = ch.emoji;
+  document.getElementById('np-name').textContent = ch.name;
+  document.getElementById('np-cat').textContent = ch.cat_label;
+  document.getElementById('live-badge').style.opacity = '1';
+
+  // Update active state in list
+  document.querySelectorAll('.channel-item').forEach(el => el.classList.remove('active'));
+  const el = document.getElementById('ch-' + id);
+  if (el) el.classList.add('active');
+
+  // Show loading overlay
+  showOverlay('loading', 'Connecting to stream...');
+
+  // Start stream
+  loadStream(ch.stream, ch);
+
+  // Scroll to top
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function loadStream(url, ch) {
+  const video = document.getElementById('video');
+  if (hls) { hls.destroy(); hls = null; }
+
+  if (Hls.isSupported()) {
+    hls = new Hls({
+      enableWorker: true,
+      lowLatencyMode: true,
+      backBufferLength: 30
+    });
+
+    hls.on(Hls.Events.ERROR, (event, data) => {
+      if (data.fatal) {
+        if (ch.backup && url !== ch.backup) {
+          showToast('Trying backup stream...');
+          loadStream(ch.backup, ch);
+        } else {
+          showOverlay('error', 'Stream unavailable. Try another channel.');
+          setStatus('⚠ Stream error');
+        }
+      }
+    });
+
+    hls.on(Hls.Events.MANIFEST_PARSED, () => {
+      hideOverlay();
+      video.play().catch(() => {
+        showOverlay('play', 'Tap to play');
+      });
+      setStatus('● Live');
+    });
+
+    hls.loadSource(url);
+    hls.attachMedia(video);
+
+  } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    // Safari / iOS native HLS
+    video.src = url;
+    video.addEventListener('loadedmetadata', () => {
+      hideOverlay();
+      video.play();
+      setStatus('● Live');
+    });
+    video.addEventListener('error', () => {
+      if (ch.backup && url !== ch.backup) {
+        loadStream(ch.backup, ch);
+      } else {
+        showOverlay('error', 'Stream unavailable');
+      }
+    });
+  } else {
+    showOverlay('error', 'Your browser does not support HLS streams.');
+  }
+}
+
+// ─────────────────────────────────────────
+// OVERLAY HELPERS
+// ─────────────────────────────────────────
+function showOverlay(type, text) {
+  const overlay = document.getElementById('player-overlay');
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = '';
+
+  if (type === 'loading') {
+    overlay.innerHTML = `<div class="spinner"></div><div id="overlay-text" style="font-size:13px;color:rgba(255,255,255,0.6);font-family:'JetBrains Mono',monospace;">${text}</div>`;
+  } else if (type === 'play') {
+    overlay.innerHTML = `
+      <div class="play-icon" onclick="document.getElementById('video').play();hideOverlay()">
+        <svg viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+      </div>
+      <div style="font-size:13px;color:rgba(255,255,255,0.5);font-family:'JetBrains Mono',monospace;">${text}</div>`;
+  } else {
+    overlay.innerHTML = `
+      <div style="font-size:32px;margin-bottom:8px;">📡</div>
+      <div style="font-size:14px;color:rgba(255,255,255,0.7);text-align:center;padding:0 20px;">${text}</div>`;
+  }
+}
+
+function hideOverlay() {
+  document.getElementById('player-overlay').classList.add('hidden');
+}
+
+function setStatus(text) {
+  document.getElementById('stream-status').textContent = text;
+}
+
+// ─────────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────────
+let toastTimer;
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+// ─────────────────────────────────────────
+// INIT
+// ─────────────────────────────────────────
+renderChannels(channels);
+</script>
+</body>
+</html>
